@@ -1,111 +1,106 @@
 var BK = BK || {};
-BK.AnimationManager = {
-    id: 0,
-    animations: [],
-    running: false,
-
-    init: function() {
+BK.Ease = {
+    inSine: function(p) {
+        return 1.0 - Math.cos(p * (Math.PI / 2.0));
     },
 
-    tick: function(timestamp) {
-        if (BK.AnimationManager.running) {
-            BK.AnimationManager.requestAnimFrame(BK.AnimationManager.tick);
-            BK.AnimationManager.update(timestamp);
-        }
+    outSine: function(p) {
+        return Math.sin(p * (Math.PI / 2.0));
     },
 
-    update: function(timestamp) {
-        var completeAnimations = [];
-
-        for (var i=0; i<BK.AnimationManager.animations.length; i++) {
-            var animation = BK.AnimationManager.animations[i];
-
-            if (timestamp - animation.startTime < animation.startDelay) {
-                continue
-            }
-
-            if (!animation.started) {
-                animation.started = true;
-                animation.startTime = performance.now();
-                animation.startFn();
-            }
-
-            if (animation.complete) {
-                completeAnimations.push(animation);
-                animation.completeFn(animation.val);
-                continue;
-            }
-
-            animation.integrate(1.0 / 60.0);
-            animation.updateFn(animation.val);
-        }
-
-        BK.AnimationManager.animations = BK.AnimationManager.animations.filter(function(el) {
-            return !completeAnimations.includes(el);
-        });
-
-        if (BK.AnimationManager.animations.length == 0) {
-            BK.AnimationManager.running = false;
-        }
+    inOutSine: function(p) {
+        return -0.5 * (Math.cos(Math.PI * p) - 1.0) + 0.0;
     },
 
-    requestAnimFrame: (window.requestAnimationFrame || window.webkitRequestAnimationFrame ||
-        window.mozRequestAnimationFrame || window.oRequestAnimationFrame ||
-        window.msRequestAnimationFrame).bind(window),
-
-    add: function(animation){
-        if (BK.AnimationManager.animations.indexOf(animation) == -1) {
-            BK.AnimationManager.animations.push(animation);
-        }
-
-        if (!BK.AnimationManager.running) {
-            BK.AnimationManager.running = true;
-            BK.AnimationManager.requestAnimFrame(BK.AnimationManager.tick);
-        }
+    inExpo: function(p) {
+        return (p == 0.0) ? 0 : Math.pow(2.0, 10.0 * (p - 1.0));
     },
 
-    remove: function(animation){
-        var idx = BK.AnimationManager.animations.indexOf(animation);
-        if (idx != -1) {
-            BK.AnimationManager.animations.splice(idx, 1);
+    outExpo: function(p) {
+        return ((p == 1.0) ? 1.0 : 1.0 - Math.pow(2.0, -10.0 * p));
+    },
+
+    inOutExpo: function(p) {
+        if (p == 0.0) {
+            return 0.0;
         }
+        if (p == 1.0) {
+            return 1.0;
+        }
+        if (p < 0.5) {
+            return 0.5 * Math.pow(2.0, 10.0 * (p * 2.0 - 1.0)) + 0.0;
+        }
+
+        return 0.5 * (-Math.pow(2.0, -10.0 * (p/0.5 - 1.0)) + 2) + 0.0;
+    },
+
+    outBack: function(p) {
+        var x = p - 1.0;
+        return x*x*((s+1.0)*x + 1.70158) + 1;
+    },
+
+    inQuad: function(p) {
+        return p*p;
+    },
+
+    outQuad: function(p) {
+        return -p*(p-2);
+    },
+
+    inOutQuad: function(p) {
+        if (p < 0.5) {
+            return p*p*2;
+        }
+
+        return 4.0*p - 2.0*p*p - 1.0;
+    },
+
+    inQuart: function(p) {
+        return p*p*p*p
+    },
+
+    outQuart: function(pIn) {
+        var p = pIn - 1.0;
+        return 1-p*p*p*p;
+    },
+
+    inOutQuart: function(p) {
+        var x = p * 2;
+        if (x < 1.0) {
+            return 0.5*x*x*x*x;
+        }
+        x -= 2.0;
+        return 1.0 - 0.5*x*x*x*x;
+    },
+
+    outQuint: function(p) {
+        var x = p - 1;
+        return x*x*x*x*x + 1;
+    },
+
+    inQuint: function(p) {
+        return p*p*p*p*p;
+    },
+
+    inOutQuint: function(p) {
+        var x = p * 2
+        if (x < 1) {
+            return 0.5*x*x*x*x*x;
+        }
+        x -= 2;
+        return 0.5*x*x*x*x*x + 1;
+    },
+
+    inElastic: function(p) {
+        return Math.sin(13.0 * (Math.PI / 2.0) * p) * Math.pow(2.0, 10.0 * (p - 1.0));
+    },
+
+    outElastic: function(p) {
+        return Math.sin(-13 * (Math.PI / 2.0) * (p + 1)) * Math.pow(2, -10 * p) + 1.0;
     }
 }
 
-var Animation = function(duration){
-    this.id = ++BK.AnimationManager.id;
-    this.val = 0;
-
-    this.duration = duration;
-    this.startTime = 0.0;
-    this.startDelay = 0.0;
-
-    this.complete = false;
-    this.started = false;
-
-    this.startFn = function(){}
-    this.updateFn = function(){}
-    this.completeFn = function(){}
-
-    var elapsed = 0.0;
-
-    this.start = function(delay) {
-        delay = delay || 0.0;
-        this.startDelay = delay;
-        BK.AnimationManager.add(this);
-    }
-
-    this.integrate = function(deltaTime) {
-        elapsed += deltaTime
-        let v = (elapsed - this.startDelay) / this.duration
-        this.val = Math.max(Math.min(v, 1.0), 0.0)
-
-        if (this.val == 1.0) {
-            this.complete = true
-        }
-    }
-
-    this.stop = function() {
-        this.complete = true
-    }
-}
+BK.Ease.smoothstep = function(min, max, value) {
+    var x = Math.max(0, Math.min(1, (value-min)/(max-min)));
+    return x*x*(3 - 2*x);
+};
